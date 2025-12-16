@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Prompt Library</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>Prompt Library</h1>
+      <p class="subtitle">Save, view, and delete your prompts locally</p>
+    </header>
+
+    <main class="main">
+      <section class="card form-card">
+        <h2>New Prompt</h2>
+        <form id="prompt-form">
+          <label for="title">Title</label>
+          <input id="title" name="title" type="text" placeholder="Give this prompt a short title" required>
+
+          <label for="content">Content</label>
+          <textarea id="content" name="content" rows="6" placeholder="Write or paste your prompt here" required></textarea>
+
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Save Prompt</button>
+            <button type="button" id="clear-form" class="btn ghost">Clear</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card list-card">
+        <div class="list-header">
+          <h2>Saved Prompts</h2>
+          <small id="count">0</small>
+        </div>
+        <div id="prompts-list" class="prompts-list">
+          <!-- Prompt items render here -->
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <small>Prompts are stored locally in your browser's `localStorage`.</small>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
