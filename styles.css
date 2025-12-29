@@ -51,4 +51,15 @@ textarea{resize:vertical}
 .empty{color:var(--muted);padding:18px;text-align:center;border-radius:8px;border:1px dashed #e6e9ef}
 .footer{margin-top:18px;text-align:center;color:var(--muted)}
 .count-badge{background:#eef2ff;color:var(--accent);padding:4px 8px;border-radius:999px;font-weight:600}
-`
+
+/* Confirm modal (non-blocking) */
+.confirm{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,0.42);z-index:60}
+.confirm.hidden{display:none}
+.confirm-content{max-width:420px;width:90%}
+.confirm-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+
+/* Toast */
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:28px;background:#0f172a;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:var(--shadow);z-index:70;font-weight:600}
+
+/* Danger button (used in modal) */
+.btn.danger, .btn.delete{background:var(--danger);color:#fff}

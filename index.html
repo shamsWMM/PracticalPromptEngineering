@@ -35,9 +35,23 @@
           <h2>Saved Prompts</h2>
           <small id="count">0</small>
         </div>
-        <div id="prompts-list" class="prompts-list">
-          <!-- Prompt items render here -->
-        </div>
+          <!-- Template for prompt items (used by JS) -->
+          <template id="prompt-template">
+            <div class="prompt-item" role="listitem">
+              <div class="prompt-meta">
+                <div class="prompt-title"></div>
+                <div class="item-actions">
+                  <button class="btn small ghost" data-action="copy" aria-label="Copy prompt">Copy</button>
+                  <button class="btn small delete" data-action="delete" aria-label="Delete prompt">Delete</button>
+                </div>
+              </div>
+              <div class="prompt-content"></div>
+            </div>
+          </template>
+
+          <div id="prompts-list" class="prompts-list" role="list">
+            <!-- Prompt items render here -->
+          </div>
       </section>
     </main>
 
@@ -45,6 +59,21 @@
       <small>Prompts are stored locally in your browser's `localStorage`.</small>
     </footer>
   </div>
-  <script src="app.js"></script>
+  <!-- Non-blocking confirm modal (controlled by app.js) -->
+  <div id="confirm-modal" class="confirm hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="confirm-content card">
+      <h3 id="confirm-title">Confirm</h3>
+      <p id="confirm-message"></p>
+      <div class="confirm-actions">
+        <button id="confirm-cancel" class="btn ghost">Cancel</button>
+        <button id="confirm-ok" class="btn danger">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Small toast for non-blocking messages -->
+  <div id="toast" class="toast" aria-live="polite" role="status" style="display:none"></div>
+
+  <script type="module" src="app.js"></script>
 </body>
 </html>
