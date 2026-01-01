@@ -24,6 +24,8 @@ function loadPrompts(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     prompts = raw ? JSON.parse(raw) : [];
+    // ensure older prompts have a rating field
+    prompts = prompts.map(p => (typeof p.rating === 'undefined') ? Object.assign({}, p, {rating: null}) : p);
   }catch(e){
     console.error('Failed to load prompts', e);
     prompts = [];
@@ -54,12 +56,42 @@ function makeNodeFromPrompt(p){
   const content = node.querySelector('.prompt-content');
   const copyBtn = node.querySelector('[data-action="copy"]');
   const deleteBtn = node.querySelector('[data-action="delete"]');
+  const ratingWrap = node.querySelector('.prompt-rating');
 
   title.textContent = p.title || '(Untitled)';
   content.textContent = p.content;
   if(copyBtn) copyBtn.dataset.id = p.id;
   if(deleteBtn) deleteBtn.dataset.id = p.id;
+
+  // render 5-star rating buttons
+  if(ratingWrap){
+    for(let i=1;i<=5;i++){
+      const star = document.createElement('button');
+      star.type = 'button';
+      star.className = 'star' + (p.rating && i <= p.rating ? ' filled' : '');
+      star.dataset.action = 'rate';
+      star.dataset.id = p.id;
+      star.dataset.value = String(i);
+      star.setAttribute('role','radio');
+      star.setAttribute('aria-checked', String(p.rating === i));
+      star.setAttribute('aria-label', `${i} star${i>1?'s':''}`);
+      star.innerHTML = i <= (p.rating || 0) ? '★' : '☆';
+      ratingWrap.appendChild(star);
+    }
+  }
   return node;
+}
+
+function setRating(id, value){
+  const p = prompts.find(x => x.id === id);
+  if(!p) return;
+  const num = value === null ? null : Number(value);
+  if(p.rating === num) p.rating = null;
+  else p.rating = num;
+  savePrompts();
+  renderPrompts();
+  if(p.rating) showToast(`Rated ${p.rating} star${p.rating>1?'s':''}`);
+  else showToast('Rating cleared');
 }
 
 function renderPrompts(){
@@ -113,7 +145,7 @@ async function handleDelete(id){
 
 function addPrompt(title, content){
   const id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2,8));
-  prompts.push({id, title, content, createdAt: new Date().toISOString()});
+  prompts.push({id, title, content, rating: null, createdAt: new Date().toISOString()});
   savePrompts();
   renderPrompts();
   showToast('Prompt saved');
@@ -140,6 +172,11 @@ promptsList.addEventListener('click', (e)=>{
   if(!btn) return;
   const action = btn.dataset.action;
   const id = btn.dataset.id;
+  if(action === 'rate'){
+    const value = btn.dataset.value;
+    setRating(id, value);
+    return;
+  }
   if(action === 'copy') handleCopy(id, btn);
   if(action === 'delete') handleDelete(id);
 });

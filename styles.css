@@ -52,6 +52,14 @@ textarea{resize:vertical}
 .footer{margin-top:18px;text-align:center;color:var(--muted)}
 .count-badge{background:#eef2ff;color:var(--accent);padding:4px 8px;border-radius:999px;font-weight:600}
 
+/* Star rating */
+.prompt-rating{display:flex;align-items:center;gap:6px;margin-right:8px}
+.prompt-rating .star{background:transparent;border:0;color:#cbd5e1;font-size:16px;cursor:pointer;padding:4px;border-radius:6px;line-height:1}
+.prompt-rating .star.filled{color:#f59e0b}
+.prompt-rating .star:hover{transform:scale(1.08)}
+.prompt-rating .star:focus{outline:3px solid rgba(37,99,235,0.18)}
+.prompt-rating .star[aria-checked="true"]{box-shadow:0 0 0 2px rgba(245,158,11,0.08)}
+
 /* Confirm modal (non-blocking) */
 .confirm{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,0.42);z-index:60}
 .confirm.hidden{display:none}
