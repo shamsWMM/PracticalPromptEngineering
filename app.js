@@ -19,6 +19,8 @@ const confirmCancel = $('#confirm-cancel');
 const template = $('#prompt-template');
 
 let prompts = [];
+let sortMode = 'newest';
+const sortSelect = $('#sort-select');
 
 function loadPrompts(){
   try{
@@ -105,10 +107,23 @@ function renderPrompts(){
     return;
   }
 
-  countEl.textContent = String(prompts.length);
+  // apply sorting/filter
+  let list = prompts.slice();
+  if(sortMode === 'top'){
+    list.sort((a,b) => {
+      const ra = a.rating || 0;
+      const rb = b.rating || 0;
+      if(rb !== ra) return rb - ra;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+  }else{
+    list.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  countEl.textContent = String(list.length);
 
   const frag = document.createDocumentFragment();
-  prompts.slice().reverse().forEach(p => {
+  list.forEach(p => {
     frag.appendChild(makeNodeFromPrompt(p));
   });
   promptsList.appendChild(frag);
@@ -180,6 +195,53 @@ promptsList.addEventListener('click', (e)=>{
   if(action === 'copy') handleCopy(id, btn);
   if(action === 'delete') handleDelete(id);
 });
+
+// Hover preview for rating (delegated)
+promptsList.addEventListener('mouseover', (e)=>{
+  const star = e.target.closest('button[data-action="rate"]');
+  if(!star) return;
+  const wrap = star.parentElement;
+  const val = Number(star.dataset.value);
+  wrap.querySelectorAll('.star').forEach(s => {
+    const v = Number(s.dataset.value);
+    if(v <= val) s.classList.add('preview'); else s.classList.remove('preview');
+  });
+});
+promptsList.addEventListener('mouseout', (e)=>{
+  const star = e.target.closest('button[data-action="rate"]');
+  if(!star) return;
+  const wrap = star.parentElement;
+  wrap.querySelectorAll('.star').forEach(s => s.classList.remove('preview'));
+});
+
+// Keyboard support for stars
+promptsList.addEventListener('keydown', (e)=>{
+  const star = e.target.closest('button[data-action="rate"]');
+  if(!star) return;
+  const wrap = star.parentElement;
+  const stars = Array.from(wrap.querySelectorAll('.star'));
+  const idx = stars.indexOf(star);
+  if(e.key === 'ArrowRight' || e.key === 'ArrowUp'){
+    const next = stars[(idx + 1) % stars.length];
+    next.focus();
+    e.preventDefault();
+  }else if(e.key === 'ArrowLeft' || e.key === 'ArrowDown'){
+    const prev = stars[(idx - 1 + stars.length) % stars.length];
+    prev.focus();
+    e.preventDefault();
+  }else if(e.key === 'Enter' || e.key === ' '){
+    setRating(star.dataset.id, star.dataset.value);
+    e.preventDefault();
+  }
+});
+
+// Sort control
+if(sortSelect){
+  sortSelect.addEventListener('change', (e)=>{
+    sortMode = sortSelect.value === 'top' ? 'top' : 'newest';
+    renderPrompts();
+  });
+}
 
 form.addEventListener('submit', (e)=>{
   e.preventDefault();

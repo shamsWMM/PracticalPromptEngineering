@@ -14,21 +14,15 @@ How to use:
 2. Enter a title and the prompt content, then click `Save Prompt`.
 3. Saved prompts appear on the right. Use `Copy` to copy content to clipboard or `Delete` to remove it.
 
-Run locally (recommended):
+# Ratings
 
-If you have Python installed you can run a tiny static server from the project folder:
+This includes a 5-star rating control for saved prompts.
 
-```bash
-# Python 3
-python3 -m http.server 8000
-# then open http://localhost:8000 in your browser
-```
+Features:
 
-Notes:
-- Prompts are stored only in the browser where you save them (using `localStorage`).
-- Clearing browser data will remove all saved prompts.
+- Click a star to set/update rating (1–5). Clicking the same rating clears it.
+- Hover stars to preview before clicking.
+- Keyboard support: focus a star and use Left/Right (or Up/Down) to move, Enter/Space to set.
+- Sort by `Top-rated` with the selector in the Saved Prompts header.
 
-If you'd like, I can:
-- Add import/export (JSON) for backups
-- Add editing of saved prompts
-- Add tags or search/filter features
+Ratings are saved to `localStorage` with each prompt as the `rating` field.

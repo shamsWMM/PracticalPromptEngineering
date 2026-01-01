@@ -56,6 +56,10 @@ textarea{resize:vertical}
 .prompt-rating{display:flex;align-items:center;gap:6px;margin-right:8px}
 .prompt-rating .star{background:transparent;border:0;color:#cbd5e1;font-size:16px;cursor:pointer;padding:4px;border-radius:6px;line-height:1}
 .prompt-rating .star.filled{color:#f59e0b}
+.prompt-rating .star.preview{color:#f59e0b}
+.prompt-rating .star{
+  transition:transform .12s ease, color .12s ease;
+}
 .prompt-rating .star:hover{transform:scale(1.08)}
 .prompt-rating .star:focus{outline:3px solid rgba(37,99,235,0.18)}
 .prompt-rating .star[aria-checked="true"]{box-shadow:0 0 0 2px rgba(245,158,11,0.08)}
@@ -65,6 +69,12 @@ textarea{resize:vertical}
 .confirm.hidden{display:none}
 .confirm-content{max-width:420px;width:90%}
 .confirm-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+
+/* List controls */
+.list-controls{display:flex;align-items:center;gap:8px}
+.list-controls select{padding:6px 8px;border-radius:8px;border:1px solid #e6e9ef;background:#fff}
+
+.visually-hidden{position:absolute !important;height:1px;width:1px;overflow:hidden;clip:rect(1px,1px,1px,1px);white-space:nowrap}
 
 /* Toast */
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:28px;background:#0f172a;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:var(--shadow);z-index:70;font-weight:600}

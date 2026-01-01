@@ -33,7 +33,14 @@
       <section class="card list-card">
         <div class="list-header">
           <h2>Saved Prompts</h2>
-          <small id="count">0</small>
+          <div class="list-controls">
+            <label for="sort-select" class="visually-hidden">Sort prompts</label>
+            <select id="sort-select" aria-label="Sort prompts">
+              <option value="newest">Newest</option>
+              <option value="top">Top-rated</option>
+            </select>
+            <small id="count">0</small>
+          </div>
         </div>
           <!-- Template for prompt items (used by JS) -->
           <template id="prompt-template">
