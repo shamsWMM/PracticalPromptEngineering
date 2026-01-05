@@ -1,5 +1,6 @@
 // Prompt Library app.js (modernized module)
-const STORAGE_KEY = 'promptLibrary.prompts';
+// Storage structure migrated to an object so we can keep prompts and recentlyDeletedNotes together.
+const STORAGE_KEY = 'promptLibrary.data';
 
 const $ = s => document.querySelector(s);
 
@@ -19,24 +20,40 @@ const confirmCancel = $('#confirm-cancel');
 const template = $('#prompt-template');
 
 let prompts = [];
+let recentlyDeletedNotes = []; // buffer of recently deleted notes (max 5)
 let sortMode = 'newest';
 const sortSelect = $('#sort-select');
 
 function loadPrompts(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
-    prompts = raw ? JSON.parse(raw) : [];
-    // ensure older prompts have a rating field
-    prompts = prompts.map(p => (typeof p.rating === 'undefined') ? Object.assign({}, p, {rating: null}) : p);
+    if(!raw){
+      prompts = [];
+      recentlyDeletedNotes = [];
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    // migration: legacy stored array -> wrap it
+    if(Array.isArray(parsed)){
+      prompts = parsed;
+      recentlyDeletedNotes = [];
+    }else{
+      prompts = parsed.prompts || [];
+      recentlyDeletedNotes = parsed.recentlyDeletedNotes || [];
+    }
+    // ensure older prompts have a rating field and notes array
+    prompts = prompts.map(p => Object.assign({rating: null, notes: []}, p));
   }catch(e){
     console.error('Failed to load prompts', e);
     prompts = [];
+    recentlyDeletedNotes = [];
   }
 }
 
 function savePrompts(){
   try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(prompts));
+    const payload = {prompts, recentlyDeletedNotes};
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     return true;
   }catch(err){
     console.error('Failed to save prompts', err);
@@ -59,11 +76,16 @@ function makeNodeFromPrompt(p){
   const copyBtn = node.querySelector('[data-action="copy"]');
   const deleteBtn = node.querySelector('[data-action="delete"]');
   const ratingWrap = node.querySelector('.prompt-rating');
+  const notesList = node.querySelector('.notes-list');
+  const noteEditor = node.querySelector('.note-editor');
+  const noteTextarea = node.querySelector('.note-text');
+  const noteAddBtn = node.querySelector('[data-action="note-add"]');
 
   title.textContent = p.title || '(Untitled)';
   content.textContent = p.content;
   if(copyBtn) copyBtn.dataset.id = p.id;
   if(deleteBtn) deleteBtn.dataset.id = p.id;
+  if(noteAddBtn) noteAddBtn.dataset.id = p.id;
 
   // render 5-star rating buttons
   if(ratingWrap){
@@ -81,7 +103,77 @@ function makeNodeFromPrompt(p){
       ratingWrap.appendChild(star);
     }
   }
+  // render notes
+  if(Array.isArray(p.notes) && notesList){
+    const noteTemplate = document.getElementById('note-template');
+    notesList.innerHTML = '';
+    p.notes.forEach(n => {
+      const nn = noteTemplate.content.cloneNode(true);
+      const item = nn.querySelector('.note-item');
+      const contentEl = nn.querySelector('.note-content');
+      const ts = nn.querySelector('.note-timestamp');
+      const editBtn = nn.querySelector('[data-action="note-edit"]');
+      const delBtn = nn.querySelector('[data-action="note-delete"]');
+      item.dataset.noteId = n.id;
+      contentEl.textContent = n.content;
+      ts.textContent = new Date(n.updatedAt || n.createdAt).toLocaleString();
+      if(editBtn) editBtn.dataset.id = p.id, editBtn.dataset.noteId = n.id;
+      if(delBtn) delBtn.dataset.id = p.id, delBtn.dataset.noteId = n.id;
+      notesList.appendChild(nn);
+    });
+  }
+
+  // ensure editor textarea cleared and associated to prompt
+  if(noteEditor && noteTextarea){
+    noteTextarea.value = '';
+    noteEditor.classList.add('hidden');
+    noteTextarea.dataset.promptId = p.id;
+  }
   return node;
+}
+
+function createNoteId(){
+  return (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('note-' + Date.now() + '-' + Math.random().toString(36).slice(2,8));
+}
+
+function addNote(promptId, content){
+  const p = prompts.find(x => x.id === promptId);
+  if(!p) return;
+  if(!p.notes) p.notes = [];
+  const now = new Date().toISOString();
+  const note = {id: createNoteId(), content: content.trim(), createdAt: now, updatedAt: now};
+  p.notes.push(note);
+  savePrompts();
+  renderPrompts();
+  showToast('Note saved');
+}
+
+function updateNote(promptId, noteId, newContent){
+  const p = prompts.find(x => x.id === promptId);
+  if(!p || !p.notes) return;
+  const n = p.notes.find(x => x.id === noteId);
+  if(!n) return;
+  n.content = newContent.trim();
+  n.updatedAt = new Date().toISOString();
+  savePrompts();
+  renderPrompts();
+  showToast('Note updated');
+}
+
+async function handleDeleteNote(promptId, noteId){
+  const ok = await showConfirm('Delete this note? It will be moved to Recently Deleted.');
+  if(!ok) return;
+  const p = prompts.find(x => x.id === promptId);
+  if(!p || !p.notes) return;
+  const idx = p.notes.findIndex(x => x.id === noteId);
+  if(idx === -1) return;
+  const [removed] = p.notes.splice(idx,1);
+  // add to recentlyDeletedNotes
+  recentlyDeletedNotes.unshift({promptId, note: removed, deletedAt: new Date().toISOString()});
+  if(recentlyDeletedNotes.length > 5) recentlyDeletedNotes.pop();
+  savePrompts();
+  renderPrompts();
+  showToast('Note deleted (recent)');
 }
 
 function setRating(id, value){
@@ -160,7 +252,7 @@ async function handleDelete(id){
 
 function addPrompt(title, content){
   const id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2,8));
-  prompts.push({id, title, content, rating: null, createdAt: new Date().toISOString()});
+  prompts.push({id, title, content, rating: null, notes: [], createdAt: new Date().toISOString()});
   savePrompts();
   renderPrompts();
   showToast('Prompt saved');
@@ -186,14 +278,99 @@ promptsList.addEventListener('click', (e)=>{
   const btn = e.target.closest('button[data-action]');
   if(!btn) return;
   const action = btn.dataset.action;
-  const id = btn.dataset.id;
+  const id = btn.dataset.id; // prompt id for many note buttons
+
+  // Rating
   if(action === 'rate'){
     const value = btn.dataset.value;
     setRating(id, value);
     return;
   }
-  if(action === 'copy') handleCopy(id, btn);
-  if(action === 'delete') handleDelete(id);
+
+  // Copy or prompt delete
+  if(action === 'copy') { handleCopy(id, btn); return; }
+  if(action === 'delete') { handleDelete(id); return; }
+
+  // Notes: add / cancel (editor) / save (editor or inline) / edit / edit-cancel / delete
+  if(action === 'note-add'){
+    const promptItem = btn.closest('.prompt-item');
+    const editor = promptItem && promptItem.querySelector('.note-editor');
+    const ta = editor && editor.querySelector('.note-text');
+    if(editor && ta){ editor.classList.remove('hidden'); ta.focus(); }
+    return;
+  }
+
+  if(action === 'note-cancel'){
+    const editor = btn.closest('.note-editor');
+    if(editor){ editor.classList.add('hidden'); const ta = editor.querySelector('.note-text'); if(ta) ta.value = ''; }
+    return;
+  }
+
+  if(action === 'note-save'){
+    // if this is an inline note save it will have dataset.noteId, otherwise it's from the new-note editor
+    const noteId = btn.dataset.noteId;
+    if(noteId){
+      const noteItem = btn.closest('.note-item');
+      const ta = noteItem && (noteItem.querySelector('textarea.note-editing') || noteItem.querySelector('textarea'));
+      if(ta) updateNote(btn.dataset.id, noteId, ta.value);
+    }else{
+      const editor = btn.closest('.note-editor');
+      if(!editor) return;
+      const ta = editor.querySelector('.note-text');
+      const promptId = ta.dataset.promptId || btn.dataset.id;
+      if(ta && ta.value.trim()) addNote(promptId, ta.value);
+      editor.classList.add('hidden');
+      if(ta) ta.value = '';
+    }
+    return;
+  }
+
+  if(action === 'note-edit'){
+    const promptId = btn.dataset.id;
+    const noteId = btn.dataset.noteId;
+    const noteItem = btn.closest('.note-item');
+    if(!noteItem) return;
+    const contentEl = noteItem.querySelector('.note-content');
+    const old = contentEl.textContent || '';
+    const ta = document.createElement('textarea');
+    ta.className = 'note-editing';
+    ta.rows = 3;
+    ta.value = old;
+    contentEl.innerHTML = '';
+    contentEl.appendChild(ta);
+    // turn edit button into save
+    btn.dataset.action = 'note-save';
+    btn.dataset.id = promptId;
+    btn.dataset.noteId = noteId;
+    btn.textContent = 'Save';
+    // add cancel button if missing
+    let cancelBtn = noteItem.querySelector('[data-action="note-edit-cancel"]');
+    if(!cancelBtn){
+      cancelBtn = document.createElement('button');
+      cancelBtn.className = 'btn small ghost';
+      cancelBtn.dataset.action = 'note-edit-cancel';
+      cancelBtn.dataset.id = promptId;
+      cancelBtn.dataset.noteId = noteId;
+      cancelBtn.textContent = 'Cancel';
+      const controls = noteItem.querySelector('.note-controls');
+      controls.appendChild(cancelBtn);
+    }
+    ta.focus();
+    return;
+  }
+
+  if(action === 'note-edit-cancel'){
+    // re-render to restore original note content
+    renderPrompts();
+    return;
+  }
+
+  if(action === 'note-delete'){
+    const promptId = btn.dataset.id;
+    const noteId = btn.dataset.noteId;
+    handleDeleteNote(promptId, noteId);
+    return;
+  }
 });
 
 // Hover preview for rating (delegated)

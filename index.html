@@ -56,12 +56,42 @@
                 </div>
               </div>
               <div class="prompt-content"></div>
+              <!-- Notes section (per-prompt) -->
+              <div class="notes" aria-live="polite">
+                <div class="notes-list" role="list"></div>
+
+                <div class="note-editor hidden">
+                  <textarea class="note-text" rows="3" placeholder="Write a note..."></textarea>
+                  <div class="note-actions">
+                    <button class="btn small" data-action="note-save">Save</button>
+                    <button class="btn small ghost" data-action="note-cancel">Cancel</button>
+                  </div>
+                </div>
+
+                <div class="notes-footer">
+                  <button class="btn small ghost" data-action="note-add" aria-label="Add note">Add Note</button>
+                </div>
+              </div>
             </div>
           </template>
 
           <div id="prompts-list" class="prompts-list" role="list">
             <!-- Prompt items render here -->
           </div>
+          
+          <!-- Template for individual notes -->
+          <template id="note-template">
+            <div class="note-item" data-note-id="">
+              <div class="note-content"></div>
+              <div class="note-meta">
+                <small class="note-timestamp"></small>
+                <div class="note-controls">
+                  <button class="btn small" data-action="note-edit">Edit</button>
+                  <button class="btn small delete" data-action="note-delete">Delete</button>
+                </div>
+              </div>
+            </div>
+          </template>
       </section>
     </main>
 

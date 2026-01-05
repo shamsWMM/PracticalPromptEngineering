@@ -81,3 +81,18 @@ textarea{resize:vertical}
 
 /* Danger button (used in modal) */
 .btn.danger, .btn.delete{background:var(--danger);color:#fff}
+
+/* Notes styles */
+.notes{margin-top:8px;border-top:1px dashed #eef2ff;padding-top:12px}
+.notes-list{display:flex;flex-direction:column;gap:8px}
+.note-item{background:#fbfdff;border:1px solid #eef6ff;padding:10px;border-radius:8px}
+.note-content{white-space:pre-wrap;color:#0f172a;font-size:14px;margin-bottom:8px}
+.note-meta{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.note-timestamp{color:var(--muted);font-size:12px}
+.note-controls{display:flex;gap:6px}
+.note-editor{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.note-editor.hidden{display:none}
+.note-text{width:100%;padding:8px;border:1px solid #e6e9ef;border-radius:8px}
+.note-actions{display:flex;gap:8px;justify-content:flex-end}
+.notes-footer{margin-top:8px}
+.note-item .delete{padding:6px 8px}
