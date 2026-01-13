@@ -20,6 +20,9 @@
           <label for="title">Title</label>
           <input id="title" name="title" type="text" placeholder="Give this prompt a short title" required>
 
+            <label for="model">Model</label>
+            <input id="model" name="model" type="text" placeholder="Model name (e.g., gpt-4o)" required maxlength="100">
+
           <label for="content">Content</label>
           <textarea id="content" name="content" rows="6" placeholder="Write or paste your prompt here" required></textarea>
 
@@ -54,6 +57,11 @@
                     <button class="btn small delete" data-action="delete" aria-label="Delete prompt">Delete</button>
                   </div>
                 </div>
+              </div>
+              <div class="metadata">
+                <div class="meta-model"></div>
+                <div class="meta-timestamps"></div>
+                <div class="meta-tokens"></div>
               </div>
               <div class="prompt-content"></div>
               <!-- Notes section (per-prompt) -->

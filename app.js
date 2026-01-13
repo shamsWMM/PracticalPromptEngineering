@@ -7,6 +7,7 @@ const $ = s => document.querySelector(s);
 const form = $('#prompt-form');
 const titleInput = $('#title');
 const contentInput = $('#content');
+const modelInput = $('#model');
 const promptsList = $('#prompts-list');
 const countEl = $('#count');
 const clearFormBtn = $('#clear-form');
@@ -23,6 +24,50 @@ let prompts = [];
 let recentlyDeletedNotes = []; // buffer of recently deleted notes (max 5)
 let sortMode = 'newest';
 const sortSelect = $('#sort-select');
+
+// --- Metadata utilities ---
+function isValidISODate(s){
+  if(typeof s !== 'string') return false;
+  const d = new Date(s);
+  return !isNaN(d.getTime()) && d.toISOString() === s;
+}
+
+function estimateTokens(text, isCode){
+  if(typeof text !== 'string') throw new Error('estimateTokens: text must be a string');
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const chars = text.length;
+  let min = Math.round(0.75 * words);
+  let max = Math.round(0.25 * chars);
+  if(isCode) { min = Math.round(min * 1.3); max = Math.round(max * 1.3); }
+  const avg = Math.max(min, max);
+  let confidence = 'high';
+  if(avg < 1000) confidence = 'high';
+  else if(avg <= 5000) confidence = 'medium';
+  else confidence = 'low';
+  return {min, max, confidence};
+}
+
+function updateTimestamps(metadata){
+  if(!metadata || typeof metadata !== 'object') throw new Error('updateTimestamps: metadata must be an object');
+  const now = new Date().toISOString();
+  if(!isValidISODate(metadata.createdAt)) throw new Error('updateTimestamps: metadata.createdAt is not a valid ISO 8601 string');
+  const created = new Date(metadata.createdAt);
+  const updated = new Date(now);
+  if(updated.getTime() < created.getTime()) throw new Error('updateTimestamps: computed updatedAt is earlier than createdAt');
+  metadata.updatedAt = now;
+  return metadata;
+}
+
+function trackModel(modelName, content){
+  if(typeof modelName !== 'string' || modelName.trim() === '') throw new Error('trackModel: modelName must be a non-empty string');
+  if(modelName.length > 100) throw new Error('trackModel: modelName must not exceed 100 characters');
+  if(typeof content !== 'string') throw new Error('trackModel: content must be a string');
+  const createdAt = new Date().toISOString();
+  const tokenEstimate = estimateTokens(content, false);
+  return {model: modelName.trim(), createdAt, updatedAt: createdAt, tokenEstimate};
+}
+
+// --- end metadata utilities ---
 
 function loadPrompts(){
   try{
@@ -41,8 +86,26 @@ function loadPrompts(){
       prompts = parsed.prompts || [];
       recentlyDeletedNotes = parsed.recentlyDeletedNotes || [];
     }
-    // ensure older prompts have a rating field and notes array
-    prompts = prompts.map(p => Object.assign({rating: null, notes: []}, p));
+    // ensure older prompts have a rating field, notes array, and metadata
+    prompts = prompts.map(p => {
+      const base = Object.assign({rating: null, notes: []}, p);
+      if(!base.metadata){
+        try{
+          const created = base.createdAt || new Date().toISOString();
+          const createdIso = (new Date(created)).toISOString();
+          const tokenEstimate = estimateTokens(base.content || '', false);
+          base.metadata = {model: 'unknown', createdAt: createdIso, updatedAt: createdIso, tokenEstimate};
+        }catch(err){
+          base.metadata = {model: 'unknown', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokenEstimate: {min:0,max:0,confidence:'low'}};
+        }
+      } else {
+        try{
+          if(!isValidISODate(base.metadata.createdAt)) base.metadata.createdAt = new Date().toISOString();
+          if(!isValidISODate(base.metadata.updatedAt)) base.metadata.updatedAt = base.metadata.createdAt;
+        }catch(e){ base.metadata.createdAt = new Date().toISOString(); base.metadata.updatedAt = base.metadata.createdAt; }
+      }
+      return base;
+    });
   }catch(e){
     console.error('Failed to load prompts', e);
     prompts = [];
@@ -129,6 +192,24 @@ function makeNodeFromPrompt(p){
     noteEditor.classList.add('hidden');
     noteTextarea.dataset.promptId = p.id;
   }
+  // populate metadata display if present in template
+  try{
+    const metaModel = node.querySelector('.meta-model');
+    const metaTimestamps = node.querySelector('.meta-timestamps');
+    const metaTokens = node.querySelector('.meta-tokens');
+    if(metaModel) metaModel.textContent = p.metadata && p.metadata.model ? String(p.metadata.model) : 'unknown';
+    if(metaTimestamps){
+      const created = p.metadata && p.metadata.createdAt ? new Date(p.metadata.createdAt).toLocaleString() : (p.createdAt ? new Date(p.createdAt).toLocaleString() : '');
+      const updated = p.metadata && p.metadata.updatedAt ? new Date(p.metadata.updatedAt).toLocaleString() : '';
+      metaTimestamps.textContent = created === updated ? created : `${created} • ${updated}`;
+    }
+    if(metaTokens && p.metadata && p.metadata.tokenEstimate){
+      const te = p.metadata.tokenEstimate;
+      metaTokens.textContent = `${te.min}–${te.max} tokens`;
+      metaTokens.classList.remove('confidence-high','confidence-medium','confidence-low');
+      metaTokens.classList.add('confidence-' + (te.confidence || 'low'));
+    }
+  }catch(e){}
   return node;
 }
 
@@ -143,6 +224,7 @@ function addNote(promptId, content){
   const now = new Date().toISOString();
   const note = {id: createNoteId(), content: content.trim(), createdAt: now, updatedAt: now};
   p.notes.push(note);
+  try{ p.metadata = updateTimestamps(p.metadata); }catch(e){}
   savePrompts();
   renderPrompts();
   showToast('Note saved');
@@ -155,6 +237,7 @@ function updateNote(promptId, noteId, newContent){
   if(!n) return;
   n.content = newContent.trim();
   n.updatedAt = new Date().toISOString();
+  try{ p.metadata = updateTimestamps(p.metadata); }catch(e){}
   savePrompts();
   renderPrompts();
   showToast('Note updated');
@@ -171,6 +254,7 @@ async function handleDeleteNote(promptId, noteId){
   // add to recentlyDeletedNotes
   recentlyDeletedNotes.unshift({promptId, note: removed, deletedAt: new Date().toISOString()});
   if(recentlyDeletedNotes.length > 5) recentlyDeletedNotes.pop();
+  try{ p.metadata = updateTimestamps(p.metadata); }catch(e){}
   savePrompts();
   renderPrompts();
   showToast('Note deleted (recent)');
@@ -182,6 +266,7 @@ function setRating(id, value){
   const num = value === null ? null : Number(value);
   if(p.rating === num) p.rating = null;
   else p.rating = num;
+  try{ p.metadata = updateTimestamps(p.metadata); }catch(e){}
   savePrompts();
   renderPrompts();
   if(p.rating) showToast(`Rated ${p.rating} star${p.rating>1?'s':''}`);
@@ -206,10 +291,16 @@ function renderPrompts(){
       const ra = a.rating || 0;
       const rb = b.rating || 0;
       if(rb !== ra) return rb - ra;
-      return new Date(b.createdAt) - new Date(a.createdAt);
+      const da = (a.metadata && a.metadata.createdAt) || a.createdAt;
+      const db = (b.metadata && b.metadata.createdAt) || b.createdAt;
+      return new Date(db) - new Date(da);
     });
   }else{
-    list.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    list.sort((a,b) => {
+      const da = (a.metadata && a.metadata.createdAt) || a.createdAt;
+      const db = (b.metadata && b.metadata.createdAt) || b.createdAt;
+      return new Date(db) - new Date(da);
+    });
   }
 
   countEl.textContent = String(list.length);
@@ -250,9 +341,15 @@ async function handleDelete(id){
   handleDeleteConfirmed(id);
 }
 
-function addPrompt(title, content){
+function addPrompt(title, content, model){
   const id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2,8));
-  prompts.push({id, title, content, rating: null, notes: [], createdAt: new Date().toISOString()});
+  let metadata = null;
+  try{
+    metadata = trackModel(model || 'unknown', content);
+  }catch(e){
+    metadata = {model:'unknown', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokenEstimate:{min:0,max:0,confidence:'low'}};
+  }
+  prompts.push({id, title, content, rating: null, notes: [], createdAt: metadata.createdAt, metadata});
   savePrompts();
   renderPrompts();
   showToast('Prompt saved');
@@ -424,13 +521,20 @@ form.addEventListener('submit', (e)=>{
   e.preventDefault();
   const title = titleInput.value.trim();
   const content = contentInput.value.trim();
+  const model = (modelInput && modelInput.value) ? modelInput.value.trim() : '';
   if(!content){
     showToast('Please enter prompt content.');
     return;
   }
-  addPrompt(title || '(Untitled)', content);
-  form.reset();
-  titleInput.focus();
+  try{
+    if(!model) throw new Error('Please enter a model name.');
+    if(model.length > 100) throw new Error('Model name must be 100 characters or fewer.');
+    addPrompt(title || '(Untitled)', content, model);
+    form.reset();
+    titleInput.focus();
+  }catch(err){
+    showToast(err.message || 'Invalid model name');
+  }
 });
 
 clearFormBtn.addEventListener('click', ()=> form.reset());

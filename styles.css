@@ -96,3 +96,12 @@ textarea{resize:vertical}
 .note-actions{display:flex;gap:8px;justify-content:flex-end}
 .notes-footer{margin-top:8px}
 .note-item .delete{padding:6px 8px}
+
+/* Metadata display */
+.metadata{display:flex;flex-direction:row;gap:12px;align-items:center;flex-wrap:wrap}
+.meta-model{font-weight:700;color:#0f172a}
+.meta-timestamps{color:var(--muted);font-size:12px}
+.meta-tokens{font-size:13px;font-weight:700;padding:4px 8px;border-radius:999px}
+.confidence-high{background:#ecfdf5;color:#0f5132}
+.confidence-medium{background:#fffbeb;color:#92400e}
+.confidence-low{background:#fff1f2;color:#881337}
