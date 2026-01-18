@@ -19,6 +19,14 @@ const confirmOk = $('#confirm-ok');
 const confirmCancel = $('#confirm-cancel');
 
 const template = $('#prompt-template');
+const exportBtn = $('#export-btn');
+const importBtn = $('#import-btn');
+const importFileInput = $('#import-file');
+const importModal = $('#import-modal');
+const importFileName = $('#import-file-name');
+const importOk = $('#import-ok');
+const importCancel = $('#import-cancel');
+const importOptionsForm = $('#import-options');
 
 let prompts = [];
 let recentlyDeletedNotes = []; // buffer of recently deleted notes (max 5)
@@ -131,6 +139,170 @@ function showToast(msg, ms = 1800){
   toastEl.style.display = '';
   setTimeout(()=> { toastEl.style.display = 'none'; }, ms);
 }
+
+// --- Export / Import utilities ---
+function createPromptId(){
+  return (crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2,8));
+}
+
+function computeStats(list){
+  const totalPrompts = list.length;
+  const ratings = list.map(p => (p.rating == null ? null : Number(p.rating))).filter(r => r != null && !isNaN(r));
+  const averageRating = ratings.length ? Number((ratings.reduce((a,b)=>a+b,0)/ratings.length).toFixed(2)) : null;
+  const modelCounts = {};
+  list.forEach(p => {
+    const m = (p.metadata && p.metadata.model) ? String(p.metadata.model) : 'unknown';
+    modelCounts[m] = (modelCounts[m] || 0) + 1;
+  });
+  let mostUsedModel = null;
+  let max = 0;
+  Object.keys(modelCounts).forEach(m => { if(modelCounts[m] > max){ max = modelCounts[m]; mostUsedModel = m; } });
+  return {totalPrompts, averageRating, mostUsedModel};
+}
+
+function downloadJSON(obj, filename){
+  const blob = new Blob([JSON.stringify(obj, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=> URL.revokeObjectURL(url), 5000);
+}
+
+function validateISO(s){ try{ return isValidISODate(s); }catch(e){ return false; } }
+
+function validateImportStructure(obj){
+  if(!obj || typeof obj !== 'object') throw new Error('Import: root must be an object');
+  if(!obj.version || typeof obj.version !== 'string') throw new Error('Import: missing version');
+  if(!obj.exportedAt || !validateISO(obj.exportedAt)) throw new Error('Import: exportedAt missing or invalid');
+  if(!Array.isArray(obj.prompts)) throw new Error('Import: prompts must be an array');
+  // validate each prompt minimally
+  obj.prompts.forEach((p, idx) => {
+    if(!p || typeof p !== 'object') throw new Error(`Import: prompt at index ${idx} is not an object`);
+    if(!p.id || typeof p.id !== 'string') throw new Error(`Import: prompt at index ${idx} missing id`);
+    if(!p.content || typeof p.content !== 'string') throw new Error(`Import: prompt at index ${idx} missing content`);
+    if(p.metadata){
+      if(!p.metadata.createdAt || !validateISO(p.metadata.createdAt)) throw new Error(`Import: prompt ${p.id} has invalid metadata.createdAt`);
+      if(!p.metadata.updatedAt || !validateISO(p.metadata.updatedAt)) throw new Error(`Import: prompt ${p.id} has invalid metadata.updatedAt`);
+    }
+  });
+  return true;
+}
+
+async function exportPrompts(){
+  try{
+    const payload = {
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      stats: computeStats(prompts),
+      prompts: prompts
+    };
+    const fname = `prompts-export-${(new Date()).toISOString().replace(/[:.]/g,'-')}.json`;
+    downloadJSON(payload, fname);
+    showToast('Export started');
+  }catch(e){
+    console.error('Export failed', e);
+    showToast('Export failed: ' + (e.message || 'unknown'));
+  }
+}
+
+function readFileAsText(file){
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(new Error('Failed to read file'));
+    r.onload = () => resolve(String(r.result));
+    r.readAsText(file);
+  });
+}
+
+function showImportDialog(parsed){
+  return new Promise(resolve => {
+    if(importFileName) importFileName.textContent = `File: ${parsed.fileName} — ${parsed.prompts.length} prompts`;
+    // show/hide duplicate options
+    const existingIds = new Set(prompts.map(p=>p.id));
+    const hasDup = parsed.prompts.some(p => existingIds.has(p.id));
+    const dupOptions = document.getElementById('dup-options');
+    if(dupOptions) dupOptions.style.display = hasDup ? '' : 'none';
+    importModal.classList.remove('hidden');
+    const onCancel = () => { cleanup(); resolve(null); };
+    const onOk = () => {
+      const fm = new FormData(importOptionsForm);
+      const mode = fm.get('mode') || 'merge';
+      const dup = fm.get('dup') || 'skip';
+      cleanup();
+      resolve({mode, dup});
+    };
+    function cleanup(){
+      importModal.classList.add('hidden');
+      importOk.removeEventListener('click', onOk);
+      importCancel.removeEventListener('click', onCancel);
+    }
+    importOk.addEventListener('click', onOk);
+    importCancel.addEventListener('click', onCancel);
+  });
+}
+
+async function handleFileImport(file){
+  if(!file) return;
+  let txt;
+  try{ txt = await readFileAsText(file); }catch(e){ showToast('Unable to read file'); return; }
+  let parsed;
+  try{ parsed = JSON.parse(txt); }catch(e){ showToast('Invalid JSON file'); return; }
+  try{ validateImportStructure(parsed); }catch(e){ showToast('Import validation failed: ' + e.message); return; }
+  // attach filename for dialog
+  parsed.fileName = file.name || 'import.json';
+  const choice = await showImportDialog(parsed);
+  if(!choice){ showToast('Import cancelled'); return; }
+
+  // backup current storage
+  const prevRaw = localStorage.getItem(STORAGE_KEY) || '';
+  const backupKey = STORAGE_KEY + '.backup.' + (new Date()).toISOString();
+  try{ localStorage.setItem(backupKey, prevRaw); }catch(e){ console.warn('Could not write backup to localStorage', e); }
+
+  try{
+    if(choice.mode === 'replace'){
+      const payload = {prompts: parsed.prompts || [], recentlyDeletedNotes: []};
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      loadPrompts(); renderPrompts(); showToast('Import complete (replaced)');
+      return;
+    }
+
+    // merge
+    const existingById = new Map(prompts.map(p=>[p.id,p]));
+    const newList = prompts.slice();
+    for(const imp of parsed.prompts){
+      if(existingById.has(imp.id)){
+        if(choice.dup === 'skip') continue;
+        if(choice.dup === 'replace'){
+          const idx = newList.findIndex(x=>x.id===imp.id);
+          if(idx !== -1) newList[idx] = imp; else newList.push(imp);
+          continue;
+        }
+        if(choice.dup === 'newid'){
+          let nid = createPromptId();
+          while(newList.some(x=>x.id===nid)) nid = createPromptId();
+          imp.id = nid;
+          newList.push(imp);
+          continue;
+        }
+      }else{
+        newList.push(imp);
+      }
+    }
+    // persist
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({prompts: newList, recentlyDeletedNotes}));
+    loadPrompts(); renderPrompts(); showToast('Import complete (merged)');
+  }catch(e){
+    console.error('Import failed, attempting rollback', e);
+    try{ if(prevRaw) localStorage.setItem(STORAGE_KEY, prevRaw); loadPrompts(); renderPrompts(); }catch(err){ console.error('Rollback failed', err); }
+    showToast('Import failed — changes rolled back');
+  }
+}
+
+// --- end import/export utilities ---
 
 function makeNodeFromPrompt(p){
   const node = template.content.cloneNode(true);
@@ -542,3 +714,13 @@ clearFormBtn.addEventListener('click', ()=> form.reset());
 // init
 loadPrompts();
 renderPrompts();
+
+// bind import/export UI
+if(exportBtn) exportBtn.addEventListener('click', exportPrompts);
+if(importBtn) importBtn.addEventListener('click', ()=> { if(importFileInput) importFileInput.click(); });
+if(importFileInput) importFileInput.addEventListener('change', (e)=>{
+  const f = (e.target && e.target.files && e.target.files[0]) ? e.target.files[0] : null;
+  if(f) handleFileImport(f);
+  // clear selection so same file can be re-imported if needed
+  if(importFileInput) importFileInput.value = '';
+});

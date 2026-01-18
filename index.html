@@ -43,6 +43,11 @@
               <option value="top">Top-rated</option>
             </select>
             <small id="count">0</small>
+            <div class="import-export">
+              <button id="export-btn" class="btn ghost small">Export</button>
+              <button id="import-btn" class="btn small">Import</button>
+              <input id="import-file" type="file" accept="application/json" style="display:none" />
+            </div>
           </div>
         </div>
           <!-- Template for prompt items (used by JS) -->
@@ -108,6 +113,30 @@
     </footer>
   </div>
   <!-- Non-blocking confirm modal (controlled by app.js) -->
+  <!-- Import options modal -->
+  <div id="import-modal" class="confirm hidden" role="dialog" aria-modal="true" aria-labelledby="import-title">
+    <div class="confirm-content card">
+      <h3 id="import-title">Import Prompts</h3>
+      <p id="import-file-name">Preparing import...</p>
+      <form id="import-options">
+        <fieldset>
+          <legend>When importing, choose:</legend>
+          <label><input type="radio" name="mode" value="merge" checked> Merge into existing data</label><br>
+          <label><input type="radio" name="mode" value="replace"> Replace existing data (overwrite)</label>
+        </fieldset>
+        <fieldset id="dup-options">
+          <legend>On duplicate IDs:</legend>
+          <label><input type="radio" name="dup" value="skip" checked> Skip imported items</label><br>
+          <label><input type="radio" name="dup" value="replace"> Replace existing items</label><br>
+          <label><input type="radio" name="dup" value="newid"> Assign new IDs to imported items</label>
+        </fieldset>
+      </form>
+      <div class="confirm-actions">
+        <button id="import-cancel" class="btn ghost">Cancel</button>
+        <button id="import-ok" class="btn primary">Import</button>
+      </div>
+    </div>
+  </div>
   <div id="confirm-modal" class="confirm hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
     <div class="confirm-content card">
       <h3 id="confirm-title">Confirm</h3>
