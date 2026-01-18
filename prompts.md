@@ -231,3 +231,44 @@ Add the import and export buttons and merge conflict resolution prompts
 
 Implement this complete system with all steps. Think step by step.
 ```
+
+Prompt 6: Using Delimiters
+```text
+I need to research how existing tools handle prompt management and version control to inform architecture decisions for a prompt library I'm building and hoping to move to production. Please research and analyze different approaches using this structure:
+
+<research_area>
+<topic>Prompt Management Solutions</topic>
+<questions>
+- What tools currently exist for prompt library management?
+</questions>
+</research_area>
+
+<research_area>
+<topic>Collaboration Features</topic>
+<questions>
+- How do teams share Postman collections or Insomnia workspaces?
+- What permission models exist in developer tools?
+</questions>
+</research_area>
+
+<research_area>
+<topic>Technical Implementation Details</topic>
+<questions>
+- What databases do similar tools use (research from their engineering blogs)?
+- How do they handle search at scale?
+- What's their approach to data export/import?
+- How do they prevent abuse and implement rate limiting?
+</questions>
+</research_area>
+
+For each research area:
+1. Find concrete examples from real products
+2. Identify patterns across successful tools
+3. Highlight common failures or user complaints
+4. Estimate implementation complexity
+
+Then synthesize this into:
+- A competitive analysis matrix
+- Recommended features for our MVP vs future releases
+- Technical decisions informed by market research
+```
